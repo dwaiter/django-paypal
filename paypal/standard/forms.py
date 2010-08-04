@@ -86,12 +86,17 @@ class PayPalPaymentsForm(forms.Form):
     
     # Default fields.
     cmd = forms.ChoiceField(widget=forms.HiddenInput(), initial=CMD_CHOICES[0][0])
+    add = forms.ChoiceField(widget=forms.HiddenInput(), initial=1)
     charset = forms.CharField(widget=forms.HiddenInput(), initial="utf-8")
     currency_code = forms.CharField(widget=forms.HiddenInput(), initial="USD")
     no_shipping = forms.ChoiceField(widget=forms.HiddenInput(), choices=SHIPPING_CHOICES, 
         initial=SHIPPING_CHOICES[0][0])
 
     def __init__(self, button_type="buy", *args, **kwargs):
+        initial = kwargs.get('initial')
+        if initial and button_type == 'cart':
+            initial['cmd'] = '_cart'
+
         super(PayPalPaymentsForm, self).__init__(*args, **kwargs)
         self.button_type = button_type
 
@@ -109,18 +114,24 @@ class PayPalPaymentsForm(forms.Form):
 </form>""" % (SANDBOX_POSTBACK_ENDPOINT, self.as_p(), self.get_image()))
         
     def get_image(self):
-        return {
-            (True, True): SUBSCRIPTION_SANDBOX_IMAGE,
-            (True, False): SANDBOX_IMAGE,
-            (False, True): SUBSCRIPTION_IMAGE,
-            (False, False): IMAGE
-        }[TEST, self.is_subscription()]
+        if self.is_cart():
+            return CART_IMAGE
+        else:
+            return {
+                (True, True): SUBSCRIPTION_SANDBOX_IMAGE,
+                (True, False): SANDBOX_IMAGE,
+                (False, True): SUBSCRIPTION_IMAGE,
+                (False, False): IMAGE
+            }[TEST, self.is_subscription()]
 
     def is_transaction(self):
         return self.button_type == "buy"
 
     def is_subscription(self):
         return self.button_type == "subscribe"
+
+    def is_cart(self):
+        return self.button_type == "cart"
 
 
 class PayPalEncryptedPaymentsForm(PayPalPaymentsForm):
