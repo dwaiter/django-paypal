@@ -92,29 +92,36 @@ class PayPalPaymentsForm(forms.Form):
     no_shipping = forms.ChoiceField(widget=forms.HiddenInput(), choices=SHIPPING_CHOICES, 
         initial=SHIPPING_CHOICES[0][0])
 
-    def __init__(self, button_type="buy", *args, **kwargs):
+    def __init__(self, button_type="buy", options=None, *args, **kwargs):
         initial = kwargs.get('initial')
         if initial and button_type == 'cart':
             initial['cmd'] = '_cart'
 
+        self.image = kwargs.pop('image', None)
+
         super(PayPalPaymentsForm, self).__init__(*args, **kwargs)
         self.button_type = button_type
+        self.options = options or []
 
     def render(self):
         return mark_safe(u"""<form action="%s" method="post">
     %s
-    <input type="image" src="%s" border="0" name="submit" alt="Buy it Now" />
-</form>""" % (POSTBACK_ENDPOINT, self.as_p(), self.get_image()))
+    %s
+    <input class="submit" type="image" src="%s" border="0" name="submit" alt="Buy it Now" />
+</form>""" % (POSTBACK_ENDPOINT, self.as_p(), self.get_options(), self.get_image()))
         
         
     def sandbox(self):
         return mark_safe(u"""<form action="%s" method="post">
     %s
-    <input type="image" src="%s" border="0" name="submit" alt="Buy it Now" />
-</form>""" % (SANDBOX_POSTBACK_ENDPOINT, self.as_p(), self.get_image()))
+    %s
+    <input class="submit" type="image" src="%s" border="0" name="submit" alt="Buy it Now" />
+</form>""" % (SANDBOX_POSTBACK_ENDPOINT, self.as_p(), self.get_options(), self.get_image()))
         
     def get_image(self):
-        if self.is_cart():
+        if self.image:
+            return self.image
+        elif self.is_cart():
             return CART_IMAGE
         else:
             return {
@@ -123,6 +130,23 @@ class PayPalPaymentsForm(forms.Form):
                 (False, True): SUBSCRIPTION_IMAGE,
                 (False, False): IMAGE
             }[TEST, self.is_subscription()]
+
+    def get_options(self):
+        INPUT = u"""<input type="hidden" name="%s" value="%s" />"""
+        CHOICE = u"""<option value="%s">%s</option>"""
+        SELECT = u"""<select name='os%d'/>%s</select>"""
+
+        option_string = ''
+        for i, option in enumerate(self.options):
+            name, choices = option
+            option_string += INPUT % ('on%d' % i, name)
+            
+            choices_string = u''
+            for choice_val, choice_name in choices:
+                choices_string += CHOICE % (choice_val, choice_name)
+
+            option_string += SELECT % (i, choices_string)
+        return option_string
 
     def is_transaction(self):
         return self.button_type == "buy"
